@@ -1,14 +1,15 @@
 use delta_2a_lidar::Lidar;
-use anyhow::Result;
+use anyhow::{Result, Context};
 
 fn main() -> Result<()> {
     println!("Enumerating lidars");
+    let mut lidar_names = Lidar::enumerate()?;
 
-    for lidar in Lidar::enumerate()? {
-        println!("Lidar name: {}", lidar);
-    }
+    println!("Taking the first lidar");
+    let lidar_name = lidar_names.next().context("Lidar was not found")?;
 
-    println!("Finished enumerating");
+    println!("Connecting to: {}", lidar_name);
+    let lidar = Lidar::open(lidar_name)?;
 
     Ok(())
 }

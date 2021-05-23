@@ -10,7 +10,7 @@ const LIDAR_BAUD_RATE: u32 = 230_400;
 pub struct Lidar;
 
 impl Lidar  {
-    pub fn enumerate() -> Result<Vec<LidarName>, EnumerateError> {
+    pub fn enumerate() -> Result<impl Iterator<Item = LidarName>, EnumerateError> {
         // Get all available serial ports
         let ports = serialport::available_ports().map_err(EnumerateError::AvailablePortsError)?;
 
@@ -28,7 +28,7 @@ impl Lidar  {
         });
 
         // Convert all cp210 bridges to LidarName
-        let lidar_names = cp210_uart_brides.map(|port_name| LidarName(port_name)).collect();
+        let lidar_names = cp210_uart_brides.map(|port_name| LidarName(port_name));
 
         // Return the lidar names
         Ok(lidar_names)
@@ -36,6 +36,9 @@ impl Lidar  {
 
     pub fn open(name: LidarName) -> Result<Lidar, LidarOpenError> {
         let serial_port_builder = serialport::new(name, LIDAR_BAUD_RATE);
+        let serial_port = serial_port_builder.open().map_err(LidarOpenError::FailedToOpenSerialPort)?;
+
+        unimplemented!()
     }
 }
 
@@ -43,7 +46,7 @@ impl Lidar  {
 pub struct LidarName(String);
 
 impl<'a> Into<Cow<'a, str>> for LidarName {
-    fn into(self) -> Cow<'_, str> {
+    fn into(self) -> Cow<'a, str> {
         self.0.into()
     }
 }
@@ -56,8 +59,8 @@ pub enum EnumerateError {
 
 #[derive(Debug, Error)]
 pub enum LidarOpenError {
-    #[error("Dummy error")]
-    Dummy
+    #[error("Failed open serial port: {0:}")]
+    FailedToOpenSerialPort(#[source] serialport::Error)
 }
 
 #[cfg(test)]
