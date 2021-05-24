@@ -105,6 +105,12 @@ impl FrameParser {
                 // Return the new frame
                 Ok(next_frame)
             }
+            FrameParser::CRCPart1 { calculated_crc, length, data } => Ok(FrameParser::CRCPart2 {
+                calculated_crc,
+                length,
+                data,
+                received_crc_part_1: value,
+            }),
             _ => unimplemented!(),
         }
     }
@@ -230,6 +236,25 @@ mod tests {
                 data: vec![0x00, 0x61, 0xFA],
             },
             after_step_3
+        );
+    }
+
+    #[test]
+    fn test_crc_part_1() {
+        let frame = FrameParser::CRCPart1 {
+            calculated_crc: CRC::from_u16(0x208), // 0xAA + 0x00 + 0x03 + 0x00 + 0x61 + FA
+            length: 6,
+            data: vec![0x00, 0x61, 0xFA],
+        };
+
+        assert_eq!(
+            Ok(FrameParser::CRCPart2 {
+                calculated_crc: CRC::from_u16(0x208), // 0xAA + 0x00 + 0x03 + 0x00 + 0x61 + FA
+                length: 6,
+                data: vec![0x00, 0x61, 0xFA],
+                received_crc_part_1: 0x02
+            }),
+            frame.next_byte(0x02)
         );
     }
 }
