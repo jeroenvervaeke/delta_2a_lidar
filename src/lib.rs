@@ -1,5 +1,5 @@
-mod crc;
-mod frame;
+pub mod crc;
+pub mod frame_parser;
 pub mod lidar;
 
 #[cfg(test)]
