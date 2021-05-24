@@ -2,6 +2,7 @@ use thiserror::Error;
 
 const FRAME_HEADER: u8 = 0xAA;
 
+#[derive(Debug, PartialEq)]
 pub enum Frame {
     // Step 1: Waiting for frame header
     // This value is fixed to 0xAA
@@ -26,6 +27,8 @@ impl Frame {
         match self {
             Frame::WaitingForHeader => {
                 if value == FRAME_HEADER {
+                    *self = Frame::LengthPart1;
+
                     Ok(FrameReadResult::Incomplete)
                 } else {
                     Err(FrameParseError::InvalidFrameHeader(value))
@@ -57,6 +60,7 @@ mod tests {
         let mut frame = Frame::new();
 
         assert_eq!(Ok(FrameReadResult::Incomplete), frame.next_byte(FRAME_HEADER));
+        assert_eq!(Frame::LengthPart1, frame);
     }
 
     #[test]
@@ -64,5 +68,6 @@ mod tests {
         let mut frame = Frame::new();
 
         assert_eq!(Err(FrameParseError::InvalidFrameHeader(0x42)), frame.next_byte(0x42));
+        assert_eq!(Frame::WaitingForHeader, frame);
     }
 }
