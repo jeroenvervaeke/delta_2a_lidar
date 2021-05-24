@@ -28,12 +28,11 @@ pub enum FrameParser {
     ReceiveFrameData { calculated_crc: CRC, length: u16, data: Vec<u8> },
 
     /// Step 5: Waiting for first byte of CRC
-    CRCPart1 { calculated_crc: CRC, length: u16, data: Vec<u8> },
+    CRCPart1 { calculated_crc: CRC, data: Vec<u8> },
 
     /// Step 6: Waiting for second byte of CRC
     CRCPart2 {
         calculated_crc: CRC,
-        length: u16,
         data: Vec<u8>,
         received_crc_part_1: u8,
     },
@@ -46,21 +45,21 @@ impl FrameParser {
     }
 
     /// Feed the next byte into a frame and calculate the resulting frame
-    pub fn next_byte(self, value: u8) -> Result<FrameParser, FrameParseError> {
+    pub fn next_byte(self, value: u8) -> Result<FrameNextByteResult, FrameParseError> {
         match self {
             FrameParser::WaitingForHeader => {
                 if value == FRAME_HEADER {
-                    Ok(FrameParser::LengthPart1 {
+                    Ok(FrameNextByteResult::Unfinished(FrameParser::LengthPart1 {
                         calculated_crc: CRC::new(FRAME_HEADER),
-                    })
+                    }))
                 } else {
                     Err(FrameParseError::InvalidFrameHeader(value))
                 }
             }
-            FrameParser::LengthPart1 { calculated_crc } => Ok(FrameParser::LengthPart2 {
+            FrameParser::LengthPart1 { calculated_crc } => Ok(FrameNextByteResult::Unfinished(FrameParser::LengthPart2 {
                 calculated_crc: calculated_crc.calculate_next(value),
                 length_part_1: value,
-            }),
+            })),
             FrameParser::LengthPart2 { calculated_crc, length_part_1 } => {
                 let length = ((length_part_1 as u16) << 8) + (value as u16);
 
@@ -74,11 +73,11 @@ impl FrameParser {
                 // First 3 bytes = Frame header (1B) + Frame length (2B)
                 let capacity = length as usize - 3;
 
-                Ok(FrameParser::ReceiveFrameData {
+                Ok(FrameNextByteResult::Unfinished(FrameParser::ReceiveFrameData {
                     calculated_crc: calculated_crc.calculate_next(value),
                     length,
                     data: Vec::with_capacity(capacity),
-                })
+                }))
             }
             FrameParser::ReceiveFrameData {
                 calculated_crc,
@@ -97,24 +96,54 @@ impl FrameParser {
 
                 // When we reached the frame length move on to CRC parsing
                 let next_frame = if actual_length == length {
-                    FrameParser::CRCPart1 { calculated_crc, length, data }
+                    FrameParser::CRCPart1 { calculated_crc, data }
                 } else {
                     FrameParser::ReceiveFrameData { calculated_crc, length, data }
                 };
 
                 // Return the new frame
-                Ok(next_frame)
+                Ok(FrameNextByteResult::Unfinished(next_frame))
             }
-            FrameParser::CRCPart1 { calculated_crc, length, data } => Ok(FrameParser::CRCPart2 {
+            FrameParser::CRCPart1 { calculated_crc, data } => Ok(FrameNextByteResult::Unfinished(FrameParser::CRCPart2 {
                 calculated_crc,
-                length,
                 data,
                 received_crc_part_1: value,
-            }),
-            _ => unimplemented!(),
+            })),
+            FrameParser::CRCPart2 {
+                calculated_crc,
+                data,
+                received_crc_part_1,
+            } => {
+                let received = ((received_crc_part_1 as u16) << 8) + value as u16;
+                let calculated = calculated_crc.as_u16();
+
+                if received != calculated {
+                    Err(FrameParseError::InvalidCRC { calculated, received })
+                } else {
+                    Ok(FrameNextByteResult::Finished(Frame(data)))
+                }
+            }
         }
     }
 }
+
+#[derive(Debug, PartialEq)]
+pub enum FrameNextByteResult {
+    Unfinished(FrameParser),
+    Finished(Frame),
+}
+
+impl FrameNextByteResult {
+    pub fn unfinished(self) -> Option<FrameParser> {
+        match self {
+            FrameNextByteResult::Unfinished(u) => Some(u),
+            FrameNextByteResult::Finished(_) => None,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Frame(Vec<u8>);
 
 #[derive(Debug, Error, PartialEq)]
 pub enum FrameParseError {
@@ -122,6 +151,8 @@ pub enum FrameParseError {
     InvalidFrameHeader(u8),
     #[error("Invalid frame length, expected a length > 5")]
     InvalidFrameLength(u16),
+    #[error("Invalid CRC, calculated {calculated:#X}, received {received:#X}")]
+    InvalidCRC { calculated: u16, received: u16 },
 }
 
 #[cfg(test)]
@@ -133,9 +164,9 @@ mod tests {
         let frame = FrameParser::new();
 
         assert_eq!(
-            Ok(FrameParser::LengthPart1 {
+            Ok(FrameNextByteResult::Unfinished(FrameParser::LengthPart1 {
                 calculated_crc: CRC::new(FRAME_HEADER)
-            }),
+            })),
             frame.next_byte(FRAME_HEADER)
         );
     }
@@ -154,10 +185,10 @@ mod tests {
         };
 
         assert_eq!(
-            Ok(FrameParser::LengthPart2 {
+            Ok(FrameNextByteResult::Unfinished(FrameParser::LengthPart2 {
                 calculated_crc: CRC::new(FRAME_HEADER),
                 length_part_1: 0x00
-            }),
+            })),
             frame.next_byte(0x00)
         );
     }
@@ -169,7 +200,7 @@ mod tests {
             length_part_1: 0,
         };
 
-        let frame = frame.next_byte(0x09).unwrap();
+        let frame = frame.next_byte(0x09).unwrap().unfinished().unwrap();
 
         assert_eq!(
             FrameParser::ReceiveFrameData {
@@ -206,7 +237,7 @@ mod tests {
         };
 
         // Protocol version
-        let after_step_1 = frame.next_byte(0x00).unwrap();
+        let after_step_1 = frame.next_byte(0x00).unwrap().unfinished().unwrap();
         assert_eq!(
             FrameParser::ReceiveFrameData {
                 calculated_crc: CRC::from_u16(0xAD), // 0xAA + 0x00 + 0x03 + 0x00
@@ -217,7 +248,7 @@ mod tests {
         );
 
         // Frame type
-        let after_step_2 = after_step_1.next_byte(0x61).unwrap();
+        let after_step_2 = after_step_1.next_byte(0x61).unwrap().unfinished().unwrap();
         assert_eq!(
             FrameParser::ReceiveFrameData {
                 calculated_crc: CRC::from_u16(0x10E), // 0xAA + 0x00 + 0x03 + 0x00 + 0x61
@@ -228,11 +259,10 @@ mod tests {
         );
 
         // Data: invalid special unit test type
-        let after_step_3 = after_step_2.next_byte(0xFA).unwrap();
+        let after_step_3 = after_step_2.next_byte(0xFA).unwrap().unfinished().unwrap();
         assert_eq!(
             FrameParser::CRCPart1 {
                 calculated_crc: CRC::from_u16(0x208), // 0xAA + 0x00 + 0x03 + 0x00 + 0x61 + FA
-                length: 6,
                 data: vec![0x00, 0x61, 0xFA],
             },
             after_step_3
@@ -243,18 +273,44 @@ mod tests {
     fn test_crc_part_1() {
         let frame = FrameParser::CRCPart1 {
             calculated_crc: CRC::from_u16(0x208), // 0xAA + 0x00 + 0x03 + 0x00 + 0x61 + FA
-            length: 6,
             data: vec![0x00, 0x61, 0xFA],
         };
 
         assert_eq!(
-            Ok(FrameParser::CRCPart2 {
+            Ok(FrameNextByteResult::Unfinished(FrameParser::CRCPart2 {
                 calculated_crc: CRC::from_u16(0x208), // 0xAA + 0x00 + 0x03 + 0x00 + 0x61 + FA
-                length: 6,
                 data: vec![0x00, 0x61, 0xFA],
                 received_crc_part_1: 0x02
-            }),
+            })),
             frame.next_byte(0x02)
+        );
+    }
+
+    #[test]
+    fn test_crc_part_2_ok() {
+        let frame = FrameParser::CRCPart2 {
+            calculated_crc: CRC::from_u16(0x208), // 0xAA + 0x00 + 0x03 + 0x00 + 0x61 + FA
+            data: vec![0x00, 0x61, 0xFA],
+            received_crc_part_1: 0x02,
+        };
+
+        assert_eq!(Ok(FrameNextByteResult::Finished(Frame(vec![0x00, 0x61, 0xFA]))), frame.next_byte(0x08));
+    }
+
+    #[test]
+    fn test_crc_part_2_nok() {
+        let frame = FrameParser::CRCPart2 {
+            calculated_crc: CRC::from_u16(0x208), // 0xAA + 0x00 + 0x03 + 0x00 + 0x61 + FA
+            data: vec![0x00, 0x61, 0xFA],
+            received_crc_part_1: 0x02,
+        };
+
+        assert_eq!(
+            Err(FrameParseError::InvalidCRC {
+                calculated: 0x208,
+                received: 0x207
+            }),
+            frame.next_byte(0x07)
         );
     }
 }
