@@ -1,4 +1,5 @@
 use crate::crc::CRC;
+use std::borrow::BorrowMut;
 use thiserror::Error;
 
 const FRAME_HEADER: u8 = 0xAA;
@@ -48,51 +49,37 @@ impl Frame {
         Frame::WaitingForHeader
     }
 
-    pub fn next_byte(&mut self, value: u8) -> Result<FrameReadResult, FrameParseError> {
+    pub fn next_byte(self, value: u8) -> Result<Frame, FrameParseError> {
         match self {
             Frame::WaitingForHeader => {
                 if value == FRAME_HEADER {
-                    *self = Frame::LengthPart1 {
+                    Ok(Frame::LengthPart1 {
                         calculated_crc: CRC::new(FRAME_HEADER),
-                    };
-
-                    Ok(FrameReadResult::Incomplete)
+                    })
                 } else {
                     Err(FrameParseError::InvalidFrameHeader(value))
                 }
             }
-            Frame::LengthPart1 { calculated_crc } => {
-                *self = Frame::LengthPart2 {
-                    calculated_crc: calculated_crc.calculate_next(value),
-                    length_part_1: value,
-                };
-
-                Ok(FrameReadResult::Incomplete)
-            }
+            Frame::LengthPart1 { calculated_crc } => Ok(Frame::LengthPart2 {
+                calculated_crc: calculated_crc.calculate_next(value),
+                length_part_1: value,
+            }),
             Frame::LengthPart2 { calculated_crc, length_part_1 } => {
-                let length = ((*length_part_1 as u16) << 8) + (value as u16);
+                let length = ((length_part_1 as u16) << 8) + (value as u16);
 
                 // First 3 bytes are included in the size but will not be found int the data Vec
                 // First 3 bytes = Frame header (1B) + Frame length (2B)
                 let capacity = length as usize - 3;
 
-                *self = Frame::ReceiveFrameData {
+                Ok(Frame::ReceiveFrameData {
                     calculated_crc: calculated_crc.calculate_next(value),
                     length,
                     data: Vec::with_capacity(capacity),
-                };
-
-                Ok(FrameReadResult::Incomplete)
+                })
             }
             _ => unimplemented!(),
         }
     }
-}
-
-#[derive(Debug, PartialEq)]
-pub enum FrameReadResult {
-    Incomplete,
-    Finished,
 }
 
 #[derive(Debug, Error, PartialEq)]
@@ -107,49 +94,47 @@ mod tests {
 
     #[test]
     fn frame_header_ok() {
-        let mut frame = Frame::new();
+        let frame = Frame::new();
 
-        assert_eq!(Ok(FrameReadResult::Incomplete), frame.next_byte(FRAME_HEADER));
         assert_eq!(
-            Frame::LengthPart1 {
+            Ok(Frame::LengthPart1 {
                 calculated_crc: CRC::new(FRAME_HEADER)
-            },
-            frame
+            }),
+            frame.next_byte(FRAME_HEADER)
         );
     }
 
     #[test]
     fn frame_header_nok() {
-        let mut frame = Frame::new();
+        let frame = Frame::new();
 
         assert_eq!(Err(FrameParseError::InvalidFrameHeader(0x42)), frame.next_byte(0x42));
-        assert_eq!(Frame::WaitingForHeader, frame);
     }
 
     #[test]
     fn frame_length_part_1_ok() {
-        let mut frame = Frame::LengthPart1 {
+        let frame = Frame::LengthPart1 {
             calculated_crc: CRC::new(FRAME_HEADER),
         };
 
-        assert_eq!(Ok(FrameReadResult::Incomplete), frame.next_byte(0x00));
         assert_eq!(
-            Frame::LengthPart2 {
+            Ok(Frame::LengthPart2 {
                 calculated_crc: CRC::new(FRAME_HEADER),
                 length_part_1: 0x00
-            },
-            frame
+            }),
+            frame.next_byte(0x00)
         );
     }
 
     #[test]
     fn frame_length_part_2_ok() {
-        let mut frame = Frame::LengthPart2 {
+        let frame = Frame::LengthPart2 {
             calculated_crc: CRC::new(FRAME_HEADER),
             length_part_1: 0,
         };
 
-        assert_eq!(Ok(FrameReadResult::Incomplete), frame.next_byte(0x09));
+        let frame = frame.next_byte(0x09).unwrap();
+
         assert_eq!(
             Frame::ReceiveFrameData {
                 calculated_crc: CRC::new(0xB3), // 0xAA + 0x00 + 0x09
