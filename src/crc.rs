@@ -6,6 +6,10 @@ impl CRC {
         CRC(value as u16)
     }
 
+    pub fn from_u16(value: u16) -> CRC {
+        CRC(value)
+    }
+
     pub fn from_bytes<'a, I: IntoIterator<Item = &'a u8>>(bytes: I) -> CRC {
         let iter = bytes.into_iter();
         iter.fold(CRC::new(0), |acc, current| acc.calculate_next(*current))

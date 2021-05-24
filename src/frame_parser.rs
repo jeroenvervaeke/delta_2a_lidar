@@ -190,4 +190,46 @@ mod tests {
 
         assert_eq!(Err(FrameParseError::InvalidFrameLength(0x03)), frame.next_byte(0x03));
     }
+
+    #[test]
+    fn receive_frame_data_ok() {
+        let frame = FrameParser::ReceiveFrameData {
+            calculated_crc: CRC::from_u16(0xAD), // 0xAA + 0x00 + 0x03
+            length: 6,
+            data: vec![],
+        };
+
+        // Protocol version
+        let after_step_1 = frame.next_byte(0x00).unwrap();
+        assert_eq!(
+            FrameParser::ReceiveFrameData {
+                calculated_crc: CRC::from_u16(0xAD), // 0xAA + 0x00 + 0x03 + 0x00
+                length: 6,
+                data: vec![0x00],
+            },
+            after_step_1
+        );
+
+        // Frame type
+        let after_step_2 = after_step_1.next_byte(0x61).unwrap();
+        assert_eq!(
+            FrameParser::ReceiveFrameData {
+                calculated_crc: CRC::from_u16(0x10E), // 0xAA + 0x00 + 0x03 + 0x00 + 0x61
+                length: 6,
+                data: vec![0x00, 0x61],
+            },
+            after_step_2
+        );
+
+        // Data: invalid special unit test type
+        let after_step_3 = after_step_2.next_byte(0xFA).unwrap();
+        assert_eq!(
+            FrameParser::CRCPart1 {
+                calculated_crc: CRC::from_u16(0x208), // 0xAA + 0x00 + 0x03 + 0x00 + 0x61 + FA
+                length: 6,
+                data: vec![0x00, 0x61, 0xFA],
+            },
+            after_step_3
+        );
+    }
 }
