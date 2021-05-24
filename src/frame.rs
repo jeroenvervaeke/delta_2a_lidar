@@ -34,6 +34,11 @@ impl Frame {
                     Err(FrameParseError::InvalidFrameHeader(value))
                 }
             }
+            Frame::LengthPart1 => {
+                *self = Frame::LengthPart2 { length_part_1: value };
+
+                Ok(FrameReadResult::Incomplete)
+            }
             _ => unimplemented!(),
         }
     }
@@ -69,5 +74,13 @@ mod tests {
 
         assert_eq!(Err(FrameParseError::InvalidFrameHeader(0x42)), frame.next_byte(0x42));
         assert_eq!(Frame::WaitingForHeader, frame);
+    }
+
+    #[test]
+    fn frame_length_part_1_ok() {
+        let mut frame = Frame::LengthPart1;
+
+        assert_eq!(Ok(FrameReadResult::Incomplete), frame.next_byte(0x00));
+        assert_eq!(Frame::LengthPart2 { length_part_1: 0x00 }, frame);
     }
 }
