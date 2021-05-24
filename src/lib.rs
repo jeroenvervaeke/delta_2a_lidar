@@ -1,15 +1,18 @@
-use thiserror::Error;
-use serialport::SerialPortType;
 use derive_more::{Display, Into};
+use serialport::{SerialPort, SerialPortType};
 use std::borrow::Cow;
+use std::time::Duration;
+use thiserror::Error;
 
 const CP210X_VID: u16 = 4292;
 const CP210X_PID: u16 = 60000;
 const LIDAR_BAUD_RATE: u32 = 230_400;
 
-pub struct Lidar;
+pub struct Lidar {
+    serial_port: Box<dyn SerialPort>,
+}
 
-impl Lidar  {
+impl Lidar {
     pub fn enumerate() -> Result<impl Iterator<Item = LidarName>, EnumerateError> {
         // Get all available serial ports
         let ports = serialport::available_ports().map_err(EnumerateError::AvailablePortsError)?;
@@ -21,10 +24,12 @@ impl Lidar  {
         });
 
         // Keep all CP210x uart bridges (the lidar doesn't have a specific vendor id but shows up as a generic CP210x uart bridge)
-        let cp210_uart_brides = usb_ports.filter_map(|(port_name, usb_info)| if usb_info.vid == CP210X_VID && usb_info.pid == CP210X_PID {
-            Some(port_name)
-        } else {
-            None
+        let cp210_uart_brides = usb_ports.filter_map(|(port_name, usb_info)| {
+            if usb_info.vid == CP210X_VID && usb_info.pid == CP210X_PID {
+                Some(port_name)
+            } else {
+                None
+            }
         });
 
         // Convert all cp210 bridges to LidarName
@@ -35,10 +40,10 @@ impl Lidar  {
     }
 
     pub fn open(name: LidarName) -> Result<Lidar, LidarOpenError> {
-        let serial_port_builder = serialport::new(name, LIDAR_BAUD_RATE);
+        let serial_port_builder = serialport::new(name, LIDAR_BAUD_RATE).timeout(Duration::from_millis(5));
         let serial_port = serial_port_builder.open().map_err(LidarOpenError::FailedToOpenSerialPort)?;
 
-        unimplemented!()
+        Ok(Lidar { serial_port })
     }
 }
 
@@ -54,19 +59,11 @@ impl<'a> Into<Cow<'a, str>> for LidarName {
 #[derive(Debug, Error)]
 pub enum EnumerateError {
     #[error("Failed get available ports: {0:}")]
-    AvailablePortsError(#[source] serialport::Error)
+    AvailablePortsError(#[source] serialport::Error),
 }
 
 #[derive(Debug, Error)]
 pub enum LidarOpenError {
     #[error("Failed open serial port: {0:}")]
-    FailedToOpenSerialPort(#[source] serialport::Error)
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
+    FailedToOpenSerialPort(#[source] serialport::Error),
 }
