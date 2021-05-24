@@ -10,13 +10,37 @@ pub enum Frame {
     WaitingForHeader,
 
     // Step 2: Waiting for first byte of 2 bytes frame header length
-    LengthPart1 { calculated_crc: CRC },
+    LengthPart1 {
+        calculated_crc: CRC,
+    },
 
     // Step 3: Waiting for the 2nd byte of the 2 bytes frame header length
-    LengthPart2 { calculated_crc: CRC, length_part_1: u8 },
+    LengthPart2 {
+        calculated_crc: CRC,
+        length_part_1: u8,
+    },
 
     // Step 4: Waiting for remaining bytes
-    ReceiveFrameData { calculated_crc: CRC, length: u16, data: Vec<u8> },
+    ReceiveFrameData {
+        calculated_crc: CRC,
+        length: u16,
+        data: Vec<u8>,
+    },
+
+    // Step 5: Waiting for first byte of CRC
+    CRCPart1 {
+        calculated_crc: CRC,
+        length: u16,
+        data: Vec<u8>,
+    },
+
+    // Step 6: Waiting for second byte of CRC
+    CRCPart2 {
+        calculated_crc: CRC,
+        length: u16,
+        data: Vec<u8>,
+        received_crc_part_1: u8,
+    },
 }
 
 impl Frame {
@@ -48,10 +72,14 @@ impl Frame {
             Frame::LengthPart2 { calculated_crc, length_part_1 } => {
                 let length = ((*length_part_1 as u16) << 8) + (value as u16);
 
+                // First 3 bytes are included in the size but will not be found int the data Vec
+                // First 3 bytes = Frame header (1B) + Frame length (2B)
+                let capacity = length as usize - 3;
+
                 *self = Frame::ReceiveFrameData {
                     calculated_crc: calculated_crc.calculate_next(value),
                     length,
-                    data: Vec::with_capacity(length as usize),
+                    data: Vec::with_capacity(capacity),
                 };
 
                 Ok(FrameReadResult::Incomplete)
@@ -132,7 +160,7 @@ mod tests {
         );
 
         match frame {
-            Frame::ReceiveFrameData { data, .. } if data.capacity() == 9 => { /* valid */ }
+            Frame::ReceiveFrameData { data, .. } if data.capacity() == 6 => { /* valid */ }
             Frame::ReceiveFrameData { data, .. } => panic!("Invalid data capacity: {}", data.capacity()),
             _ => panic!("Invalid state!"),
         }
