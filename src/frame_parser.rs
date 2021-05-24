@@ -158,6 +158,7 @@ pub enum FrameParseError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::mock_data::*;
 
     #[test]
     fn frame_header_ok() {
@@ -312,5 +313,26 @@ mod tests {
             }),
             frame.next_byte(0x07)
         );
+    }
+
+    fn test_example(example_bytes: &[u8]) {
+        let result = example_bytes
+            .iter()
+            .fold(FrameNextByteResult::Unfinished(FrameParser::new()), |acc, current_byte| match acc {
+                FrameNextByteResult::Finished(frame) => FrameNextByteResult::Finished(frame),
+                FrameNextByteResult::Unfinished(frame_parser) => frame_parser.next_byte(*current_byte).expect("Should not fail"),
+            });
+
+        assert!(matches!(result, FrameNextByteResult::Finished(_)));
+    }
+
+    #[test]
+    fn example_1() {
+        test_example(&FIRST_EXAMPLE);
+    }
+
+    #[test]
+    fn example_2() {
+        test_example(&SECOND_EXAMPLE);
     }
 }
