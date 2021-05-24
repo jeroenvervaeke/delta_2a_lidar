@@ -9,10 +9,10 @@ pub enum Frame {
     WaitingForHeader,
 
     // Step 2: Waiting for first byte of 2 bytes frame header length
-    LengthPart1,
+    LengthPart1 { calculated_crc: u8 },
 
     // Step 3: Waiting for the 2nd byte of the 2 bytes frame header length
-    LengthPart2 { length_part_1: u8 },
+    LengthPart2 { calculated_crc: u8, length_part_1: u8 },
 
     // Step 4: Waiting for remaining bytes
     ReceiveFrameData { length: u16, data: Vec<u8> },
@@ -27,15 +27,18 @@ impl Frame {
         match self {
             Frame::WaitingForHeader => {
                 if value == FRAME_HEADER {
-                    *self = Frame::LengthPart1;
+                    *self = Frame::LengthPart1 { calculated_crc: FRAME_HEADER };
 
                     Ok(FrameReadResult::Incomplete)
                 } else {
                     Err(FrameParseError::InvalidFrameHeader(value))
                 }
             }
-            Frame::LengthPart1 => {
-                *self = Frame::LengthPart2 { length_part_1: value };
+            Frame::LengthPart1 { calculated_crc } => {
+                *self = Frame::LengthPart2 {
+                    calculated_crc: calculated_crc.overflowing_add(value).0,
+                    length_part_1: value,
+                };
 
                 Ok(FrameReadResult::Incomplete)
             }
@@ -65,7 +68,7 @@ mod tests {
         let mut frame = Frame::new();
 
         assert_eq!(Ok(FrameReadResult::Incomplete), frame.next_byte(FRAME_HEADER));
-        assert_eq!(Frame::LengthPart1, frame);
+        assert_eq!(Frame::LengthPart1 { calculated_crc: FRAME_HEADER }, frame);
     }
 
     #[test]
@@ -78,9 +81,29 @@ mod tests {
 
     #[test]
     fn frame_length_part_1_ok() {
-        let mut frame = Frame::LengthPart1;
+        let mut frame = Frame::LengthPart1 { calculated_crc: FRAME_HEADER };
 
         assert_eq!(Ok(FrameReadResult::Incomplete), frame.next_byte(0x00));
-        assert_eq!(Frame::LengthPart2 { length_part_1: 0x00 }, frame);
+        assert_eq!(
+            Frame::LengthPart2 {
+                calculated_crc: FRAME_HEADER,
+                length_part_1: 0x00
+            },
+            frame
+        );
+    }
+
+    #[test]
+    fn frame_length_part_1_crc_overflow_ok() {
+        let mut frame = Frame::LengthPart1 { calculated_crc: FRAME_HEADER };
+
+        assert_eq!(Ok(FrameReadResult::Incomplete), frame.next_byte(0x66));
+        assert_eq!(
+            Frame::LengthPart2 {
+                calculated_crc: 0x10,
+                length_part_1: 0x66
+            },
+            frame
+        );
     }
 }
