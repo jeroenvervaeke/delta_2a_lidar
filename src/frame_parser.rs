@@ -7,10 +7,10 @@ const FRAME_HEADER: u8 = 0xAA;
 ///
 /// A frame looks as follows:
 ///
-/// |                   | Frame Header | Frame Length | Protocol version | Frame Type | Data                    | CRC |
-/// |------------------|-----------------------|----------------------|-------------------------|--------------------|----------------------------|---------|
-/// | Fixed         | Yes                | No                 | Yes                  | Yes              |  No                      | No    |
-/// | Value/Size | 0xAA              | 2B                 | 0x00                 | 0x61            |  Frame length - 2   | 2B    |
+/// |                   | Frame Header | Frame Length | Protocol version | Frame Type | Data                                       | CRC |
+/// |------------------|-----------------------|----------------------|-------------------------|--------------------|-----------------------------------------------|---------|
+/// | Fixed         | Yes                | No                 | Yes                  | Yes              |  No                                         | No    |
+/// | Value/Size | 0xAA              | 2B                 | 0x00                 | 0x61            |  Frame length - 2 (at least 1B)   | 2B    |
 #[derive(Debug, PartialEq)]
 pub enum FrameParser {
     /// Step 1: Waiting for frame header
@@ -64,6 +64,12 @@ impl FrameParser {
             FrameParser::LengthPart2 { calculated_crc, length_part_1 } => {
                 let length = ((length_part_1 as u16) << 8) + (value as u16);
 
+                // If the length is < 6 consider the frame to be invalid
+                // See docs of frame why.
+                if length < 6 {
+                    return Err(FrameParseError::InvalidFrameLength(length));
+                }
+
                 // First 3 bytes are included in the size but will not be found int the data Vec
                 // First 3 bytes = Frame header (1B) + Frame length (2B)
                 let capacity = length as usize - 3;
@@ -108,6 +114,8 @@ impl FrameParser {
 pub enum FrameParseError {
     #[error("Invalid frame header, expected 0xAA, got {0:#X}")]
     InvalidFrameHeader(u8),
+    #[error("Invalid frame length, expected a length > 5")]
+    InvalidFrameLength(u16),
 }
 
 #[cfg(test)]
@@ -171,5 +179,15 @@ mod tests {
             FrameParser::ReceiveFrameData { data, .. } => panic!("Invalid data capacity: {}", data.capacity()),
             _ => panic!("Invalid state!"),
         }
+    }
+
+    #[test]
+    fn frame_length_part_2_nok() {
+        let frame = FrameParser::LengthPart2 {
+            calculated_crc: CRC::new(FRAME_HEADER),
+            length_part_1: 0,
+        };
+
+        assert_eq!(Err(FrameParseError::InvalidFrameLength(0x03)), frame.next_byte(0x03));
     }
 }
