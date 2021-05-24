@@ -15,7 +15,7 @@ pub enum Frame {
     LengthPart2 { calculated_crc: u8, length_part_1: u8 },
 
     // Step 4: Waiting for remaining bytes
-    ReceiveFrameData { length: u16, data: Vec<u8> },
+    ReceiveFrameData { calculated_crc: u8, length: u16, data: Vec<u8> },
 }
 
 impl Frame {
@@ -38,6 +38,17 @@ impl Frame {
                 *self = Frame::LengthPart2 {
                     calculated_crc: calculated_crc.overflowing_add(value).0,
                     length_part_1: value,
+                };
+
+                Ok(FrameReadResult::Incomplete)
+            }
+            Frame::LengthPart2 { calculated_crc, length_part_1 } => {
+                let length = ((*length_part_1 as u16) << 8) + (value as u16);
+
+                *self = Frame::ReceiveFrameData {
+                    calculated_crc: calculated_crc.overflowing_add(value).0,
+                    length,
+                    data: Vec::with_capacity(length as usize),
                 };
 
                 Ok(FrameReadResult::Incomplete)
@@ -105,5 +116,29 @@ mod tests {
             },
             frame
         );
+    }
+
+    #[test]
+    fn frame_length_part_2_ok() {
+        let mut frame = Frame::LengthPart2 {
+            calculated_crc: FRAME_HEADER,
+            length_part_1: 0,
+        };
+
+        assert_eq!(Ok(FrameReadResult::Incomplete), frame.next_byte(0x09));
+        assert_eq!(
+            Frame::ReceiveFrameData {
+                calculated_crc: 0xB3, // 0xAA + 0x00 + 0x09
+                length: 0x0009,
+                data: vec![]
+            },
+            frame
+        );
+
+        match frame {
+            Frame::ReceiveFrameData { data, .. } if data.capacity() == 9 => { /* valid */ }
+            Frame::ReceiveFrameData { data, .. } => panic!("Invalid data capacity: {}", data.capacity()),
+            _ => panic!("Invalid state!"),
+        }
     }
 }
