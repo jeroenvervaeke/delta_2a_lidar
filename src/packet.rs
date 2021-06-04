@@ -19,11 +19,22 @@ impl Packet {
             return Err(PacketParseError::FrameTooShort(frame_len));
         }
 
-        match bytes[2] {
-            I3LIDAR_NEW_DISTANCE => Ok(Packet::Distance),
-            I3LIDAR_LIDAR_SPEED => Ok(Packet::LidarSpeed),
+        let command_byte = bytes[2];
+        let data = &bytes[3..];
+
+        match command_byte {
+            I3LIDAR_NEW_DISTANCE => Self::parse_distance(data),
+            I3LIDAR_LIDAR_SPEED => Self::parse_lidar_speed(data),
             command_byte => Err(PacketParseError::UnsupportedCommandByte(command_byte)),
         }
+    }
+
+    fn parse_distance(_data: &[u8]) -> Result<Self, PacketParseError> {
+        todo!()
+    }
+
+    fn parse_lidar_speed(_data: &[u8]) -> Result<Self, PacketParseError> {
+        todo!()
     }
 }
 
