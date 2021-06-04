@@ -134,6 +134,13 @@ pub enum FrameNextByteResult {
 }
 
 impl FrameNextByteResult {
+    pub fn finished(self) -> Option<Frame> {
+        match self {
+            FrameNextByteResult::Unfinished(_) => None,
+            FrameNextByteResult::Finished(f) => Some(f),
+        }
+    }
+
     pub fn unfinished(self) -> Option<FrameParser> {
         match self {
             FrameNextByteResult::Unfinished(u) => Some(u),
