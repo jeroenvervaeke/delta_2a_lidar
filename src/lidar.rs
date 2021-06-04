@@ -1,15 +1,23 @@
+use crate::frame_parser::{FrameNextByteResult, FrameParser};
+use crate::packet::Packet;
 use derive_more::{Display, Into};
-use serialport::{SerialPort, SerialPortType};
+use serialport::SerialPortType;
 use std::borrow::Cow;
+use std::io::Read;
+use std::thread;
+use std::thread::JoinHandle;
 use std::time::Duration;
 use thiserror::Error;
+use tokio::sync::mpsc;
+use tokio::sync::mpsc::UnboundedReceiver;
 
 const CP210X_VID: u16 = 4292;
 const CP210X_PID: u16 = 60000;
 const LIDAR_BAUD_RATE: u32 = 230_400;
 
 pub struct Lidar {
-    serial_port: Box<dyn SerialPort>,
+    _handle: JoinHandle<()>,
+    receiver: UnboundedReceiver<Packet>,
 }
 
 impl Lidar {
@@ -40,10 +48,56 @@ impl Lidar {
     }
 
     pub fn open(name: LidarName) -> Result<Lidar, LidarOpenError> {
-        let serial_port_builder = serialport::new(name, LIDAR_BAUD_RATE).timeout(Duration::from_millis(5));
-        let serial_port = serial_port_builder.open().map_err(LidarOpenError::FailedToOpenSerialPort)?;
+        let serial_port_builder = serialport::new(name, LIDAR_BAUD_RATE).timeout(Duration::from_millis(500));
+        let mut serial_port = serial_port_builder.open().map_err(LidarOpenError::FailedToOpenSerialPort)?;
 
-        Ok(Lidar { serial_port })
+        let (tx, rx) = mpsc::unbounded_channel();
+
+        let handle = thread::spawn(move || {
+            let mut buffer = [0u8];
+            let mut frame_parser = FrameParser::new();
+
+            loop {
+                if let Err(e) = serial_port.read(&mut buffer) {
+                    eprintln!("Failed to read character from serial port: {:?}", e);
+                    continue;
+                }
+
+                match frame_parser.next_byte(buffer[0]) {
+                    Ok(next_result) => match next_result {
+                        FrameNextByteResult::Unfinished(parser) => frame_parser = parser,
+                        FrameNextByteResult::Finished(frame) => {
+                            println!("Frame: {:?}", frame);
+
+                            match Packet::parse(frame) {
+                                Ok(packet) => {
+                                    println!("Packet: {:?}", packet);
+                                    if let Err(e) = tx.send(packet) {
+                                        eprintln!("Failed to send packet over channel, quitting: {:?}", e);
+                                        return;
+                                    }
+                                }
+                                Err(e) => {
+                                    eprintln!("Failed to parse packet: {:?}", e);
+                                }
+                            }
+
+                            frame_parser = FrameParser::new();
+                        }
+                    },
+                    Err(e) => {
+                        eprintln!("Failed to parse frame: {:?}", e);
+                        frame_parser = FrameParser::new();
+                    }
+                }
+            }
+        });
+
+        Ok(Lidar { _handle: handle, receiver: rx })
+    }
+
+    pub async fn next(&mut self) -> Option<Packet> {
+        self.receiver.recv().await
     }
 }
 

@@ -145,6 +145,12 @@ impl FrameNextByteResult {
 #[derive(Debug, PartialEq)]
 pub struct Frame(Vec<u8>);
 
+impl Into<Vec<u8>> for Frame {
+    fn into(self) -> Vec<u8> {
+        self.0
+    }
+}
+
 #[derive(Debug, Error, PartialEq)]
 pub enum FrameParseError {
     #[error("Invalid frame header, expected 0xAA, got {0:#X}")]

@@ -10,4 +10,5 @@ edition = "2018"
 anyhow = "1.0"
 derive_more = "0.99.14"
 thiserror = "1.0"
+tokio = { version = "1.0", features = ["full"] }
 serialport = "4.0.1"
