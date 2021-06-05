@@ -30,18 +30,50 @@ impl Packet {
     }
 
     fn parse_distance(data: &[u8]) -> Result<Self, PacketParseError> {
-        //let _effective_data_length = ((data[0] as u16) << 8) | (data[1] as u16);
+        let actual_length = data.len();
+
+        // A measuring package is at least 5 bytes long (header)
+        if actual_length < 5 {
+            return Err(PacketParseError::FrameTooShort(actual_length));
+        }
+
+        // Calculate the effective length
+        let effective_data_length = ((data[0] as u16) << 8) | (data[1] as u16);
+        let actual_data_length = (actual_length - 2) as u16;
+        if effective_data_length != actual_data_length {
+            return Err(PacketParseError::UnexpectedFrameLength {
+                actual: actual_data_length,
+                expected: effective_data_length,
+            });
+        }
+
+        // Get the radar speed
         let radar_speed = 0.05f32 * data[2] as f32;
 
+        // Validate if the zero point offset exists
         if data[3] != 00 || data[4] != 0x87 {
             return Err(PacketParseError::ZeroPointOffsetIsMissing);
         }
 
+        // Calculate the start angle
         let start_angle = (((data[5] as u16) << 8) | (data[6] as u16)) as f32 * 0.01f32;
 
-        println!("Length: {}", data.len());
+        // Convert all remaining bytes into data
+        // Drop signal strength (only useful for sensor debugging purposes according to the datasheet)
+        let measurements = data[7..]
+            .chunks(3)
+            .filter_map(|values| match values {
+                [_signal_strength, value_high, value_low] => Some((((*value_high as u16) << 8) | (*value_low as u16)) as f32 * 0.25f32),
+                _ => None,
+            })
+            .collect();
 
-        Ok(Packet::Distance(DistancePacket { radar_speed, start_angle }))
+        // Return the distance packet
+        Ok(Packet::Distance(DistancePacket {
+            radar_speed,
+            start_angle,
+            measurements,
+        }))
     }
 
     fn parse_lidar_speed(_data: &[u8]) -> Result<Self, PacketParseError> {
@@ -57,12 +89,15 @@ pub enum PacketParseError {
     UnsupportedCommandByte(u8),
     #[error("ZeroPointOffsetIsMissing")]
     ZeroPointOffsetIsMissing,
+    #[error("Unexpected frame length, expected {expected:}, got: {actual:}")]
+    UnexpectedFrameLength { actual: u16, expected: u16 },
 }
 
 #[derive(Debug, PartialEq)]
 pub struct DistancePacket {
     radar_speed: f32,
     start_angle: f32,
+    measurements: Vec<f32>,
 }
 
 #[cfg(test)]
@@ -96,7 +131,13 @@ mod tests {
         assert_eq!(
             DistancePacket {
                 radar_speed: 6.5f32,
-                start_angle: 270.0f32
+                start_angle: 270.0f32,
+                measurements: vec![
+                    0f32, 2126.5f32, 2270f32, 0f32, 0f32, 3288f32, 3261.75f32, 3258.75f32, 3256f32, 2146f32, 0f32, 2146f32, 2147.25f32, 2159.75f32, 3253f32,
+                    3264.5f32, 3256f32, 5202f32, 5202f32, 5202f32, 5202f32, 5126.25f32, 5202f32, 5209f32, 5209f32, 5202f32, 5209f32, 5202f32, 5209f32,
+                    5323.25f32, 5742.5f32, 3038f32, 3001f32, 0f32, 2999.5f32, 3001f32, 3028f32, 3001f32, 3033f32, 3038f32, 5762.75f32, 5887.25f32, 5876.75f32,
+                    5898f32, 5898f32, 5887.25f32, 6028.5
+                ],
             },
             packet
         );
