@@ -50,10 +50,7 @@ impl Packet {
         // Get the radar speed
         let radar_speed = 0.05f32 * data[2] as f32;
 
-        // Validate if the zero point offset exists
-        if data[3] != 00 || data[4] != 0x87 {
-            return Err(PacketParseError::ZeroPointOffsetIsMissing);
-        }
+        // I have no clue what data[3] and data[4] are
 
         // Calculate the start angle
         let start_angle = (((data[5] as u16) << 8) | (data[6] as u16)) as f32 * 0.01f32;
@@ -87,8 +84,6 @@ pub enum PacketParseError {
     FrameTooShort(usize),
     #[error("Unsupported command byte: {0:}")]
     UnsupportedCommandByte(u8),
-    #[error("ZeroPointOffsetIsMissing")]
-    ZeroPointOffsetIsMissing,
     #[error("Unexpected frame length, expected {expected:}, got: {actual:}")]
     UnexpectedFrameLength { actual: u16, expected: u16 },
 }

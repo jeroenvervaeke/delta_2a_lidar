@@ -1,22 +1,26 @@
 use anyhow::{Context, Result};
 use delta_2a_lidar::Lidar;
+use log::info;
+use pretty_env_logger::env_logger::{Builder, Env};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    println!("Enumerating lidars");
+    Builder::from_env(Env::default().default_filter_or("info")).init();
+
+    info!("Enumerating lidars");
     let mut lidar_names = Lidar::enumerate()?;
 
-    println!("Taking the first lidar");
+    info!("Taking the first lidar");
     let lidar_name = lidar_names.next().context("Lidar was not found")?;
 
-    println!("Connecting to: {}", lidar_name);
+    info!("Connecting to: {}", lidar_name);
     let mut lidar = Lidar::open(lidar_name)?;
 
     while let Some(package) = lidar.next().await {
-        println!("Received package: {:?}", package);
+        info!("Received package: {:?}", package);
     }
 
-    println!("Finished receiving messages, quitting");
+    info!("Finished receiving messages, quitting");
 
     Ok(())
 }

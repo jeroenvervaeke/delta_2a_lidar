@@ -1,6 +1,7 @@
 use crate::frame_parser::{FrameNextByteResult, FrameParser};
 use crate::packet::Packet;
 use derive_more::{Display, Into};
+use log::{error, warn};
 use serialport::SerialPortType;
 use std::borrow::Cow;
 use std::io::Read;
@@ -59,7 +60,7 @@ impl Lidar {
 
             loop {
                 if let Err(e) = serial_port.read(&mut buffer) {
-                    eprintln!("Failed to read character from serial port: {:?}", e);
+                    warn!("Failed to read character from serial port: {:?}", e);
                     continue;
                 }
 
@@ -67,18 +68,15 @@ impl Lidar {
                     Ok(next_result) => match next_result {
                         FrameNextByteResult::Unfinished(parser) => frame_parser = parser,
                         FrameNextByteResult::Finished(frame) => {
-                            println!("Frame: {:?}", frame);
-
                             match Packet::parse(frame) {
                                 Ok(packet) => {
-                                    println!("Packet: {:?}", packet);
                                     if let Err(e) = tx.send(packet) {
-                                        eprintln!("Failed to send packet over channel, quitting: {:?}", e);
+                                        error!("Failed to send packet over channel, quitting: {:?}", e);
                                         return;
                                     }
                                 }
                                 Err(e) => {
-                                    eprintln!("Failed to parse packet: {:?}", e);
+                                    warn!("Failed to parse packet: {:?}", e);
                                 }
                             }
 
@@ -86,7 +84,7 @@ impl Lidar {
                         }
                     },
                     Err(e) => {
-                        eprintln!("Failed to parse frame: {:?}", e);
+                        warn!("Failed to parse frame: {:?}", e);
                         frame_parser = FrameParser::new();
                     }
                 }
