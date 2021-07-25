@@ -50,7 +50,8 @@ impl Packet {
         // Get the radar speed
         let radar_speed = 0.05f32 * data[2] as f32;
 
-        // I have no clue what data[3] and data[4] are
+        // Calculate the offset angle
+        let offset_angle = (((data[3] as u16) << 8) | (data[4] as u16)) as f32 * 0.01f32;
 
         // Calculate the start angle
         let start_angle = (((data[5] as u16) << 8) | (data[6] as u16)) as f32 * 0.01f32;
@@ -69,6 +70,7 @@ impl Packet {
         Ok(Packet::Distance(DistancePacket {
             radar_speed,
             start_angle,
+            offset_angle,
             measurements,
         }))
     }
@@ -92,6 +94,7 @@ pub enum PacketParseError {
 pub struct DistancePacket {
     radar_speed: f32,
     start_angle: f32,
+    offset_angle: f32,
     measurements: Vec<f32>,
 }
 
@@ -127,6 +130,7 @@ mod tests {
             DistancePacket {
                 radar_speed: 6.5f32,
                 start_angle: 270.0f32,
+                offset_angle: 1.35,
                 measurements: vec![
                     0f32, 2126.5f32, 2270f32, 0f32, 0f32, 3288f32, 3261.75f32, 3258.75f32, 3256f32, 2146f32, 0f32, 2146f32, 2147.25f32, 2159.75f32, 3253f32,
                     3264.5f32, 3256f32, 5202f32, 5202f32, 5202f32, 5202f32, 5126.25f32, 5202f32, 5209f32, 5209f32, 5202f32, 5209f32, 5202f32, 5209f32,
