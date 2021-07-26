@@ -1,5 +1,7 @@
 use crate::frame_parser::{FrameNextByteResult, FrameParser};
 use crate::packet::Packet;
+use crate::packet_stream::PacketStream;
+use async_trait::async_trait;
 use derive_more::{Display, Into};
 use log::{error, warn};
 use serialport::SerialPortType;
@@ -96,6 +98,13 @@ impl Lidar {
 
     pub async fn next(&mut self) -> Option<Packet> {
         self.receiver.recv().await
+    }
+}
+
+#[async_trait]
+impl PacketStream for Lidar {
+    async fn next(&mut self) -> Option<Packet> {
+        Lidar::next(self).await
     }
 }
 
