@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use delta_2a_lidar::Lidar;
+use delta_2a_lidar::{measurements_file, Lidar};
 use log::info;
 use pretty_env_logger::env_logger::{Builder, Env};
 
@@ -16,8 +16,12 @@ async fn main() -> Result<()> {
     info!("Connecting to: {}", lidar_name);
     let mut lidar = Lidar::open(lidar_name)?;
 
+    info!("Creating measurement file");
+    let mut measurements = measurements_file::write("./measurements.ldr").await?;
+
     while let Some(package) = lidar.next().await {
         info!("Received package: {:?}", package);
+        measurements.write(&package).await?;
     }
 
     info!("Finished receiving messages, quitting");

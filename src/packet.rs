@@ -1,10 +1,13 @@
 use crate::frame_parser::Frame;
+#[cfg(feature = "serialize")]
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 const I3LIDAR_NEW_DISTANCE: u8 = 0xAD;
 const I3LIDAR_LIDAR_SPEED: u8 = 0xAE;
 
 #[derive(Debug, PartialEq)]
+#[cfg_attr(feature = "serialize", derive(Serialize, Deserialize))]
 pub enum Packet {
     Distance(DistancePacket),
     LidarSpeed,
@@ -91,6 +94,7 @@ pub enum PacketParseError {
 }
 
 #[derive(Debug, PartialEq)]
+#[cfg_attr(feature = "serialize", derive(Serialize, Deserialize))]
 pub struct DistancePacket {
     radar_speed: f32,
     start_angle: f32,
