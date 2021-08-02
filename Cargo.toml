@@ -1,8 +1,14 @@
 [package]
 name = "delta_2a_lidar"
+description = "A driver implementation for the 3irobotix delta-2A lidar sensor"
 version = "0.1.0"
 authors = ["Jeroen Vervaeke <jeroenvervaeke@users.noreply.github.com>"]
 edition = "2018"
+license = "MIT"
+homepage = "https://github.com/jeroenvervaeke/delta_2a_lidar"
+repository = "https://github.com/jeroenvervaeke/delta_2a_lidar"
+readme = "README.md"
+keywords = ["lidar", "3irbotix", "delta-2a", "delta2a", "sensor", "driver"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
