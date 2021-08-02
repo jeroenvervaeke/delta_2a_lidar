@@ -1,11 +1,11 @@
 //!  # Delta-2A lidar driver
 //! ## About
-//! This crate contains rust driver implementation for the [3irobotix delta-2A Lidar Sensor](https://www.banggood.com/custlink/KG3dehcdKd).
+//! This crate contains a rust driver implementation for the [3irobotix delta-2A Lidar Sensor](https://www.banggood.com/custlink/KG3dehcdKd).
 //!
 //! ## Features
 //! - Read distance frames
 //! - Read lidar speed (WIP)
-//! - Read/write measurements to file + abstractions to mock sensor (behind '`file` feature)
+//! - Read/write measurements to file + abstractions to mock sensor (behind `file` feature)
 //!
 //! ## Dependencies
 //! This library uses the `serialport` crate which requires `libudev-dev` to be installed on your system.
