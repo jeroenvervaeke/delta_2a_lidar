@@ -54,4 +54,4 @@ while let Some(package) = lidar.next().await {
 [crates-io-img]: https://img.shields.io/crates/v/delta_2a_lidar.svg
 [crates-io-url]: https://crates.io/crates/delta_2a_lidar
 [docs-img]: https://docs.rs/delta_2a_lidar/badge.svg
-[docs-url]: https://docs.rs/delta_2a_lidar/0.1.0/delta_2a_lidar/
+[docs-url]: https://docs.rs/delta_2a_lidar
