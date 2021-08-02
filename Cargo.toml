@@ -8,7 +8,7 @@ license = "MIT"
 homepage = "https://github.com/jeroenvervaeke/delta_2a_lidar"
 repository = "https://github.com/jeroenvervaeke/delta_2a_lidar"
 readme = "README.md"
-keywords = ["lidar", "3irbotix", "delta-2a", "delta2a", "sensor", "driver"]
+keywords = ["lidar", "3irbotix", "delta-2a", "delta2a"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
