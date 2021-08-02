@@ -10,19 +10,12 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter, Lines};
 
 /// Open a file with measurements which were recorded using the `write` function
 pub async fn read(file_name: impl AsRef<Path>) -> Result<MeasurementReadFile> {
-    let file = OpenOptions::new().read(true).open(file_name).await?;
-    let buffered_reader = BufReader::new(file);
-    let lines = buffered_reader.lines();
-
-    Ok(MeasurementReadFile::new(lines))
+    MeasurementReadFile::new(file_name).await
 }
 
 /// Open a measurements file for reading, the recorded packages can later be read using the `read` function
 pub async fn write(file_name: impl AsRef<Path>) -> Result<MeasurementWriteFile> {
-    let file = File::create(file_name).await?;
-    let buffered_writer = BufWriter::new(file);
-
-    Ok(MeasurementWriteFile::new(buffered_writer))
+    MeasurementWriteFile::new(file_name).await
 }
 
 /// File containing lidar measurements. This file implements `PacketStream` and can be used to mock a Lidar sensor
@@ -31,8 +24,15 @@ pub struct MeasurementReadFile {
 }
 
 impl MeasurementReadFile {
-    fn new(lines: Lines<BufReader<File>>) -> Self {
-        MeasurementReadFile { lines }
+    async fn new(file_name: impl AsRef<Path>) -> Result<MeasurementReadFile> {
+        // Open the file in read mode
+        let file = OpenOptions::new().read(true).open(file_name).await?;
+
+        // Create a buffered reader end get a lines() iterator
+        let buffered_reader = BufReader::new(file);
+        let lines = buffered_reader.lines();
+
+        Ok(MeasurementReadFile { lines })
     }
 }
 
@@ -51,8 +51,15 @@ pub struct MeasurementWriteFile {
 }
 
 impl MeasurementWriteFile {
-    fn new(buffer: BufWriter<File>) -> Self {
-        MeasurementWriteFile { buffer }
+    async fn new(file_name: impl AsRef<Path>) -> Result<MeasurementWriteFile> {
+        // Open the file in write mode.
+        // Will create a new file or truncate to the existing file
+        let file = File::create(file_name).await?;
+
+        // Create a buffered writer
+        let buffer = BufWriter::new(file);
+
+        Ok(MeasurementWriteFile { buffer })
     }
 
     /// Write a packet to the file
