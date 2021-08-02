@@ -21,17 +21,18 @@
 //! use delta_2a_lidar::Lidar;
 //!
 //! for sensor in Lidar::enumerate().unwrap() {
-//!     println!("Found lidar sensor: {:?}", sensor);
+//!     println!("Found lidar sensor: {}", sensor);
 //! }
 //! ```
 //!
 //! ### Read incoming packages
 //! This simple example prints all incoming packages from the first lidar sensor we find
 //! ```no_run
+//!# let blah = async {
 //! use delta_2a_lidar::Lidar;
 //!
 //! // Get all lidars
-//! let mut lidar_names = Lidar::enumerate()?;
+//! let mut lidar_names = Lidar::enumerate().unwrap();
 //!
 //! // Take the first lidar
 //! let lidar_name = lidar_names.next().unwrap();
@@ -42,7 +43,8 @@
 //! // Read packages as long as the lidar produces packages
 //! while let Some(package) = lidar.next().await {
 //!    println!("Received package: {:?}", package);
-//!}
+//! }
+//!# };
 //! ```
 pub mod crc;
 pub mod frame_parser;
