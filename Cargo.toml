@@ -1,0 +1,40 @@
+[package]
+name = "delta_2a_lidar"
+description = "A driver implementation for the 3irobotix delta-2A lidar sensor"
+version = "0.1.0"
+authors = ["Jeroen Vervaeke <jeroenvervaeke@users.noreply.github.com>"]
+edition = "2018"
+license = "MIT"
+homepage = "https://github.com/jeroenvervaeke/delta_2a_lidar"
+repository = "https://github.com/jeroenvervaeke/delta_2a_lidar"
+readme = "README.md"
+keywords = ["lidar", "3irbotix", "delta-2a", "delta2a"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0"
+async-trait = "0.1"
+derive_more = "0.99.14"
+log = { version = "0.4", features = ["release_max_level_info"] }
+pretty_env_logger = "0.4.0"
+thiserror = "1.0"
+tokio = { version = "1.0", features = ["sync"] }
+serialport = "4.0.1"
+serde = { version = "1", features = ["derive"], optional = true }
+serde_json = { version = "1", optional = true }
+
+[features]
+file = ["serialize", "tokio/fs", "tokio/io-util"]
+serialize = [ "serde", "serde_json"]
+_do_not_use_bin_rt = [ "tokio/rt", "tokio/macros", "tokio/rt-multi-thread" ]
+
+[[bin]]
+name = "record"
+path = "bin/record.rs"
+required-features = ["file", "_do_not_use_bin_rt"]
+
+[[bin]]
+name = "read_measurements"
+path = "bin/read_measurements.rs"
+required-features = ["file", "_do_not_use_bin_rt"]
