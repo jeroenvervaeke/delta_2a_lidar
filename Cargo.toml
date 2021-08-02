@@ -1,7 +1,7 @@
 [package]
 name = "delta_2a_lidar"
 description = "A driver implementation for the 3irobotix delta-2A lidar sensor"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Jeroen Vervaeke <jeroenvervaeke@users.noreply.github.com>"]
 edition = "2018"
 license = "MIT"
