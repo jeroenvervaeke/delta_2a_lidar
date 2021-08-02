@@ -1,3 +1,5 @@
+//! This module is meant for mocking and recording lidar measurements.
+//! It is hidden behind the `file` feature flag.
 use crate::packet::Packet;
 use crate::packet_stream::PacketStream;
 use anyhow::Result;
