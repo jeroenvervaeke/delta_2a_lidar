@@ -24,6 +24,7 @@ pub struct Lidar {
 }
 
 impl Lidar {
+    /// Returns all available LidarSensors that are connected to the computer
     pub fn enumerate() -> Result<impl Iterator<Item = LidarName>, EnumerateError> {
         // Get all available serial ports
         let ports = serialport::available_ports().map_err(EnumerateError::AvailablePortsError)?;
@@ -50,6 +51,7 @@ impl Lidar {
         Ok(lidar_names)
     }
 
+    /// Opens the given lidar sensor
     pub fn open(name: LidarName) -> Result<Lidar, LidarOpenError> {
         let serial_port_builder = serialport::new(name, LIDAR_BAUD_RATE).timeout(Duration::from_millis(500));
         let mut serial_port = serial_port_builder.open().map_err(LidarOpenError::FailedToOpenSerialPort)?;
@@ -96,6 +98,7 @@ impl Lidar {
         Ok(Lidar { _handle: handle, receiver: rx })
     }
 
+    /// Read the next lidar package
     pub async fn next(&mut self) -> Option<Packet> {
         self.receiver.recv().await
     }
